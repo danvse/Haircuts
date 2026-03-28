@@ -1,42 +1,75 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Haircut Classifier</title>
-  <style>
-    body { font-family: Arial; text-align: center; padding: 40px; }
-    .chopped { color: red; font-size: 48px; font-weight: bold; }
-    .good { color: green; font-size: 36px; }
-  </style>
+    <title>Haircut Classifier</title>
+    <style>
+        #dropbox {
+            width: 300px;
+            height: 200px;
+            border: 3px dashed #555;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 40px auto;
+            font-size: 18px;
+            color: #555;
+        }
+    </style>
 </head>
 <body>
 
-<h1>Upload Your Haircut</h1>
+<h2 style="text-align:center;">Upload Your Haircut</h2>
 
-<input type="file" id="fileInput">
-<button onclick="upload()">Submit</button>
+<div id="dropbox">Drop image here</div>
+<input type="file" id="fileInput" style="display:none;" />
 
-<div id="result"></div>
+<pre id="result" style="text-align:center; margin-top:20px;"></pre>
 
 <script>
-async function upload() {
-  const file = document.getElementById("fileInput").files[0];
-  const form = new FormData();
-  form.append("file", file);
+const dropbox = document.getElementById("dropbox");
+const fileInput = document.getElementById("fileInput");
+const resultBox = document.getElementById("result");
 
-  const res = await fetch("http://localhost:8000/classify", {
-    method: "POST",
-    body: form
-  });
+// Click dropbox to open file picker
+dropbox.addEventListener("click", () => fileInput.click());
 
-  const data = await res.json();
+// Handle manual file selection
+fileInput.addEventListener("change", () => {
+    uploadAndClassify(fileInput.files[0]);
+});
 
-  if (data.status === "bad") {
-    document.getElementById("result").innerHTML =
-      "<div class='chopped'>YOU'RE CHOPPED</div>";
-  } else {
-    document.getElementById("result").innerHTML =
-      "<div class='good'>Good haircut: " + data.haircut + "</div>";
-  }
+// Handle drag/drop
+dropbox.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    dropbox.style.borderColor = "blue";
+});
+
+dropbox.addEventListener("dragleave", () => {
+    dropbox.style.borderColor = "#555";
+});
+
+dropbox.addEventListener("drop", (e) => {
+    e.preventDefault();
+    dropbox.style.borderColor = "#555";
+
+    const file = e.dataTransfer.files[0];
+    uploadAndClassify(file);
+});
+
+// Upload + classify
+async function uploadAndClassify(file) {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    resultBox.textContent = "Processing...";
+
+    const response = await fetch("http://localhost:5000/classify", {
+        method: "POST",
+        body: formData
+    });
+
+    const result = await response.json();
+    resultBox.textContent = JSON.stringify(result, null, 2);
 }
 </script>
 

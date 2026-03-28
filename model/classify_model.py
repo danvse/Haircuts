@@ -1,15 +1,24 @@
 import torch
-import torch.nn.functional as F
-from torchvision import models, transforms
+import clip
 from PIL import Image
+from flask import Flask, request, jsonify
+from flask_cors import CORS
 import json
 
 # -----------------------------
-# Load Model + Class Mapping
+# Load CLIP Model
 # -----------------------------
-checkpoint = torch.load("haircut_model.pth", map_location="cpu")
-class_to_idx = checkpoint["classes"]
-idx_to_class = {v: k for k, v in class_to_idx.items()}
+device = "cuda" if torch.cuda.is_available() else "cpu"
+model, preprocess = clip.load("ViT-B/32", device=device)
+
+# -----------------------------
+# Load Haircut Classes
+# -----------------------------
+with open("classes.json") as f:
+    classes = json.load(f)
+
+# Convert to CLIP text tokens
+text_tokens = clip.tokenize(classes).to(device)
 
 # -----------------------------
 # Load Popularity Scores
@@ -18,38 +27,20 @@ with open("popularity.json") as f:
     popularity = json.load(f)
 
 # -----------------------------
-# Build Model
-# -----------------------------
-model = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
-model.fc = torch.nn.Linear(model.fc.in_features, len(class_to_idx))
-model.load_state_dict(checkpoint["model"])
-model.eval()
-
-# -----------------------------
-# Image Transform
-# -----------------------------
-transform = transforms.Compose([
-    transforms.Resize((224, 224)),
-    transforms.ToTensor(),
-])
-
-# -----------------------------
 # Classification Function
 # -----------------------------
 def classify_image(image_path, conf_threshold=0.6, pop_threshold=0.5):
-    img = Image.open(image_path).convert("RGB")
-    img = transform(img).unsqueeze(0)
+    image = preprocess(Image.open(image_path)).unsqueeze(0).to(device)
 
     with torch.no_grad():
-        logits = model(img)
-        probs = F.softmax(logits, dim=1)
-        max_prob, idx = probs.max(dim=1)
+        logits_per_image, _ = model(image, text_tokens)
+        probs = logits_per_image.softmax(dim=1).cpu().numpy()[0]
 
-    max_prob = max_prob.item()
-    idx = idx.item()
-    label = idx_to_class[idx]
+    max_prob = float(probs.max())
+    idx = int(probs.argmax())
+    label = classes[idx]
 
-    # Unknown haircut (low confidence)
+    # Unknown haircut
     if max_prob < conf_threshold:
         return {
             "status": "bad",
@@ -58,7 +49,7 @@ def classify_image(image_path, conf_threshold=0.6, pop_threshold=0.5):
             "confidence": max_prob
         }
 
-    # Known haircut — check popularity
+    # Popularity check
     pop_score = popularity.get(label, 0)
 
     if pop_score < pop_threshold:
@@ -79,8 +70,23 @@ def classify_image(image_path, conf_threshold=0.6, pop_threshold=0.5):
 
 
 # -----------------------------
-# Manual Test
+# Flask API
 # -----------------------------
+app = Flask(__name__)
+CORS(app)
+
+@app.route("/classify", methods=["POST"])
+def classify():
+    if "file" not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
+
+    file = request.files["file"]
+    filepath = "uploaded_image.png"
+    file.save(filepath)
+
+    result = classify_image(filepath)
+    return jsonify(result)
+
 if __name__ == "__main__":
-    result = classify_image("Wavy.png")
-    print(result)
+    print("CLIP model loaded. Server running at http://127.0.0.1:5000")
+    app.run(debug=True)
