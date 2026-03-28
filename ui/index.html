@@ -3,73 +3,322 @@
 <head>
     <title>Haircut Classifier</title>
     <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #f4f4f4, #e8e8ff);
+            margin: 0;
+            padding: 0;
+            text-align: center;
+            overflow-x: hidden;
+        }
+
+        /* Barber pole side borders */
+        body::before,
+        body::after {
+            content: "";
+            position: fixed;
+            top: 0;
+            width: 45px;
+            height: 100%;
+            background: repeating-linear-gradient(
+                45deg,
+                #ff0000,
+                #ff0000 10px,
+                #ffffff 10px,
+                #ffffff 20px,
+                #0000ff 20px,
+                #0000ff 30px
+            );
+            opacity: 0.18;
+            z-index: -1;
+        }
+
+        body::before { left: 0; }
+        body::after { right: 0; }
+
+        /* Corner scissors decorations */
+        .corner-decor {
+            position: fixed;
+            width: 120px;
+            opacity: 0.08;
+            z-index: -1;
+        }
+
+        #decor1 { top: 20px; left: 70px; transform: rotate(-20deg); }
+        #decor2 { bottom: 20px; right: 70px; transform: rotate(15deg); }
+
+        /* Main card container */
+        .card {
+            background: white;
+            width: 420px;
+            margin: 50px auto;
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0 0 25px rgba(0,0,0,0.08);
+        }
+
+        h1 {
+            margin-top: 0;
+            color: #333;
+        }
+
         #dropbox {
-            width: 300px;
-            height: 200px;
-            border: 3px dashed #555;
+            width: 350px;
+            height: 220px;
+            border: 3px dashed #777;
+            border-radius: 12px;
+            margin: 20px auto;
             display: flex;
             align-items: center;
             justify-content: center;
-            margin: 40px auto;
-            font-size: 18px;
             color: #555;
+            font-size: 18px;
+            background: white;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        #dropbox:hover {
+            border-color: #333;
+        }
+
+        /* Fade-in preview image */
+        #preview {
+            opacity: 0;
+            transition: opacity 0.5s ease;
+            display: block;
+            margin-left: auto;
+            margin-right: auto;
+            margin-top: 20px;
+            max-width: 250px;
+            border-radius: 10px;
+            position: relative;
+        }
+
+        #preview.show {
+            opacity: 1;
+        }
+
+        /* Clown mask overlay */
+        #maskOverlay {
+            position: absolute;
+            width: 250px;
+            height: 250px;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            pointer-events: none;
+            display: none;
+        }
+
+        /* Professionalize button */
+        .pro-btn {
+            background: #4d79ff;
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: 0.2s;
+        }
+
+        .pro-btn:hover {
+            background: #3a5cd1;
+        }
+
+        /* Result box */
+        #resultBox {
+            margin-top: 25px;
+            padding: 20px;
+            width: 350px;
+            margin-left: auto;
+            margin-right: auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            display: none;
+            text-align: left;
+        }
+
+        /* Shake animation for bad results */
+        @keyframes shake {
+            0% { transform: translateX(0); }
+            20% { transform: translateX(-10px); }
+            40% { transform: translateX(10px); }
+            60% { transform: translateX(-10px); }
+            80% { transform: translateX(10px); }
+            100% { transform: translateX(0); }
+        }
+
+        .bad {
+            border-left: 6px solid #E53935;
+            animation: shake 0.5s ease;
+            background: #ffe5e5;
+        }
+
+        /* Glow animation for good results */
+        @keyframes glow {
+            0% { box-shadow: 0 0 0px rgba(76, 175, 80, 0.0); }
+            50% { box-shadow: 0 0 25px rgba(76, 175, 80, 0.9); }
+            100% { box-shadow: 0 0 0px rgba(76, 175, 80, 0.0); }
+        }
+
+        .good {
+            border-left: 6px solid #4CAF50;
+            animation: glow 1s ease;
+            background: #e6ffe9;
+        }
+
+        /* Barber pole loading animation */
+        #loading {
+            display: none;
+            margin-top: 20px;
+            font-size: 18px;
+            font-weight: bold;
+            background: repeating-linear-gradient(
+                45deg,
+                #ff0000,
+                #ff0000 10px,
+                #ffffff 10px,
+                #ffffff 20px,
+                #0000ff 20px,
+                #0000ff 30px
+            );
+            -webkit-background-clip: text;
+            color: transparent;
+            animation: barber 1s linear infinite;
+        }
+
+        @keyframes barber {
+            0% { background-position: 0 0; }
+            100% { background-position: 100px 0; }
         }
     </style>
 </head>
 <body>
 
-<h2 style="text-align:center;">Upload Your Haircut</h2>
+<!-- Corner decorations -->
+<img src="https://img.icons8.com/ios-filled/200/000000/scissors.png" class="corner-decor" id="decor1">
+<img src="https://img.icons8.com/ios-filled/200/000000/scissors.png" class="corner-decor" id="decor2">
 
-<div id="dropbox">Drop image here</div>
-<input type="file" id="fileInput" style="display:none;" />
+<div class="card">
+    <h1>Haircut Classifier</h1>
 
-<pre id="result" style="text-align:center; margin-top:20px;"></pre>
+    <div id="dropbox">Drop image here or click to upload</div>
+    <input type="file" id="fileInput" style="display:none;" accept="image/*" />
+
+    <button id="proBtn" class="pro-btn">🤡 Professionalize This</button>
+
+    <div style="position:relative; width:250px; margin:auto;">
+        <img id="preview" />
+        <img id="maskOverlay" src="R.png">
+    </div>
+
+    <div id="loading">Processing...</div>
+
+    <div id="resultBox"></div>
+</div>
 
 <script>
 const dropbox = document.getElementById("dropbox");
 const fileInput = document.getElementById("fileInput");
-const resultBox = document.getElementById("result");
+const preview = document.getElementById("preview");
+const maskOverlay = document.getElementById("maskOverlay");
+const loading = document.getElementById("loading");
+const resultBox = document.getElementById("resultBox");
+const proBtn = document.getElementById("proBtn");
 
-// Click dropbox to open file picker
+// Click to open file picker
 dropbox.addEventListener("click", () => fileInput.click());
 
-// Handle manual file selection
+// Manual file selection
 fileInput.addEventListener("change", () => {
-    uploadAndClassify(fileInput.files[0]);
+    handleFile(fileInput.files[0]);
 });
 
-// Handle drag/drop
+// Drag & drop
 dropbox.addEventListener("dragover", (e) => {
     e.preventDefault();
-    dropbox.style.borderColor = "blue";
+    dropbox.style.borderColor = "#000";
 });
 
 dropbox.addEventListener("dragleave", () => {
-    dropbox.style.borderColor = "#555";
+    dropbox.style.borderColor = "#777";
 });
 
 dropbox.addEventListener("drop", (e) => {
     e.preventDefault();
-    dropbox.style.borderColor = "#555";
-
-    const file = e.dataTransfer.files[0];
-    uploadAndClassify(file);
+    dropbox.style.borderColor = "#777";
+    handleFile(e.dataTransfer.files[0]);
 });
 
-// Upload + classify
+// Handle file upload + preview
+function handleFile(file) {
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+        preview.src = reader.result;
+        preview.style.display = "block";
+        preview.classList.remove("show");
+        void preview.offsetWidth;
+        preview.classList.add("show");
+
+        maskOverlay.style.display = "none";
+    };
+    reader.readAsDataURL(file);
+
+    uploadAndClassify(file);
+}
+
+// Professionalize button
+proBtn.addEventListener("click", () => {
+    if (!preview.src) return;
+    maskOverlay.style.display = "block";
+});
+
+// Upload to backend
 async function uploadAndClassify(file) {
     const formData = new FormData();
     formData.append("file", file);
 
-    resultBox.textContent = "Processing...";
+    loading.style.display = "block";
+    resultBox.style.display = "none";
 
-    const response = await fetch("http://localhost:5000/classify", {
+    const response = await fetch("http://127.0.0.1:5000/classify", {
         method: "POST",
         body: formData
     });
 
     const result = await response.json();
-    resultBox.textContent = JSON.stringify(result, null, 2);
+    loading.style.display = "none";
+
+    displayResult(result);
+}
+
+// Display result
+function displayResult(result) {
+    resultBox.style.display = "block";
+    resultBox.classList.remove("good", "bad");
+
+    if (result.status === "good") {
+        resultBox.classList.add("good");
+        resultBox.innerHTML = `
+            <h3>🔥 Fresh Cut Approved</h3>
+            <p><strong>Haircut:</strong> ${result.haircut}</p>
+            <p><strong>Popularity:</strong> ${result.popularity}</p>
+            <p><strong>Confidence:</strong> ${result.confidence}</p>
+        `;
+    } else {
+        resultBox.classList.add("bad");
+        resultBox.innerHTML = `
+            <h3>💀 YOU'RE CHOPPED</h3>
+            <p><strong>Reason:</strong> ${result.reason || "Low popularity"}</p>
+            <p><strong>Confidence:</strong> ${result.confidence}</p>
+        `;
+    }
 }
 </script>
 
